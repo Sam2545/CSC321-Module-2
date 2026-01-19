@@ -4,10 +4,20 @@ from Crypto.Random import get_random_bytes
 
 
 HEADER_SIZE = 54 # could be 138 if this does not work
-BLOCK_SIZE = 128
+BLOCK_SIZE_BYTES = 16
 
 def ecb(outputFile, blocks, header):
-    return 0
+
+    key = get_random_bytes(16)
+    
+    with open(outputFile, "wb") as f:
+        f.write(header)
+        for block in blocks:
+            f.write(ecb_encrypt(block, key))
+
+def ecb_encrypt(block, key):
+    cipher = AES.new(key, AES.MODE_ECB)
+    return cipher.encrypt(block)
 
 def cbc():
     return 0
@@ -16,8 +26,8 @@ def convertToBits(fileName):
 
     # save the header
     # need to convert to bits
-    # chop them into blocks of 128 
-    # any excess needs to be padded with 128 - number of bits remaining
+    # chop them into blocks of 128 bits (16 bytes)
+    # any excess needs to be padded with PKCS#7 padding
 
     totalBytes = []
     with open(fileName, "rb") as f:
@@ -28,14 +38,22 @@ def convertToBits(fileName):
 
     rest = totalBytes[HEADER_SIZE:]
 
-    blocks = []
-
-    for i in range(0, len(rest), BLOCK_SIZE):
-        blocks.append(rest[i:i+BLOCK_SIZE])
+    blocks = []    
+    for i in range(0, len(rest), BLOCK_SIZE_BYTES):
+        block = rest[i:i+BLOCK_SIZE_BYTES]
+        blocks.append(block)
     
-    if len(rest) % BLOCK_SIZE != 0:
-        remaining = BLOCK_SIZE - (len(rest) % BLOCK_SIZE)
-        blocks.append(rest[:(-1 * remaining)] + remaining * bytes([0x00])) # PKCS 7 padding need to fix
+    if len(blocks) > 0:
+        last_block = blocks[-1]
+        if len(last_block) < BLOCK_SIZE_BYTES:
+            padding_len = BLOCK_SIZE_BYTES - len(last_block)
+            padding = bytes([padding_len] * padding_len)
+            blocks[-1] = last_block + padding
+        else:
+            padding = bytes([BLOCK_SIZE_BYTES] * BLOCK_SIZE_BYTES)
+            blocks.append(padding)
+    
+    return header, blocks
 
 
 
@@ -44,13 +62,7 @@ def main():
 
     header, blocks = convertToBits(fileName=fileName)
 
-    ecb("ecbOutput.txt", blocks, header)
-
-
-
-
-
-
+    ecb("mustangECB.bmp", blocks, header)
 
 if __name__ == "__main__":
     main()
