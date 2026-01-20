@@ -9,18 +9,35 @@ BLOCK_SIZE_BYTES = 16
 def ecb(outputFile, blocks, header):
 
     key = get_random_bytes(16)
+    cipher = AES.new(key, AES.MODE_ECB)
     
     with open(outputFile, "wb") as f:
         f.write(header)
         for block in blocks:
-            f.write(ecb_encrypt(block, key))
+            f.write(ecb_encrypt(block, key, cipher))
 
-def ecb_encrypt(block, key):
-    cipher = AES.new(key, AES.MODE_ECB)
+def ecb_encrypt(block, key, cipher):
     return cipher.encrypt(block)
 
-def cbc():
-    return 0
+def cbc(outputFile, blocks, header):
+    key = get_random_bytes(16)
+    iv = get_random_bytes(16) # only for the first block
+    previous_block = iv
+    cipher = AES.new(key, AES.MODE_ECB)
+    with open(outputFile, "wb") as f:
+        f.write(header)
+        for block in blocks:
+            ciphertext = cbc_encrypt(block, key, previous_block, cipher)
+            previous_block = ciphertext
+            f.write(ciphertext)
+
+def cbc_encrypt(block, key, previous_block, cipher):
+
+    # need to xor the block with the previous block
+    # run cbc encryption on the block with the key
+    # return the cihpertext block
+    xor_block = bytes([block[i] ^ previous_block[i] for i in range(len(block))]) 
+    return cipher.encrypt(xor_block)
 
 def convertToBits(fileName):
 
@@ -58,11 +75,19 @@ def convertToBits(fileName):
 
 
 def main():
-    fileName = "./mustang.bmp"
+    mustangFileName = "./mustang.bmp"
+    cpLogoFileName = "./cp-logo.bmp"
 
-    header, blocks = convertToBits(fileName=fileName)
+    headerMustang, blocksMustang = convertToBits(fileName=mustangFileName)
+    headerCpLogo, blocksCpLogo = convertToBits(fileName=cpLogoFileName)
 
-    ecb("mustangECB.bmp", blocks, header)
+    ecb("mustangECB.bmp", blocksMustang, headerMustang)
+
+    cbc("mustangCBC.bmp", blocksMustang, headerMustang)
+
+    ecb("cpLogoECB.bmp", blocksCpLogo, headerCpLogo)
+
+    cbc("cpLogoCBC.bmp", blocksCpLogo, headerCpLogo)
 
 if __name__ == "__main__":
     main()
