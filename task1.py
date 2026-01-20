@@ -19,17 +19,31 @@ def ecb(outputFile, blocks, header):
 def ecb_encrypt(block, key, cipher):
     return cipher.encrypt(block)
 
-def cbc(outputFile, blocks, header):
-    key = get_random_bytes(16)
-    iv = get_random_bytes(16) # only for the first block
+def cbc(blocks, header, key = None, iv = None, outputFile=None):
+    if key is None:
+        key = get_random_bytes(16)
+
+    if iv is None:
+        iv = get_random_bytes(16)
     previous_block = iv
     cipher = AES.new(key, AES.MODE_ECB)
-    with open(outputFile, "wb") as f:
-        f.write(header)
-        for block in blocks:
-            ciphertext = cbc_encrypt(block, key, previous_block, cipher)
-            previous_block = ciphertext
-            f.write(ciphertext)
+    
+    ciphertext_blocks = []
+    for block in blocks:
+        ciphertext = cbc_encrypt(block, key, previous_block, cipher)
+        previous_block = ciphertext
+        ciphertext_blocks.append(ciphertext)
+    
+    # Combine all ciphertext blocks
+    ciphertext_bytes = b''.join(ciphertext_blocks)
+    
+    # Write to file if outputFile is provided
+    if outputFile is not None:
+        with open(outputFile, "wb") as f:
+            f.write(header)
+            f.write(ciphertext_bytes)
+    
+    return ciphertext_bytes
 
 def cbc_encrypt(block, key, previous_block, cipher):
 
@@ -39,21 +53,25 @@ def cbc_encrypt(block, key, previous_block, cipher):
     xor_block = bytes([block[i] ^ previous_block[i] for i in range(len(block))]) 
     return cipher.encrypt(xor_block)
 
-def convertToBits(fileName):
+def convertToBits(input_data):
 
     # save the header
     # need to convert to bits
     # chop them into blocks of 128 bits (16 bytes)
     # any excess needs to be padded with PKCS#7 padding
+    # Can accept either a file path (string) or bytes data directly
 
-    totalBytes = []
-    with open(fileName, "rb") as f:
-        totalBytes = f.read()
-    
-    print(type(totalBytes))
-    header = totalBytes[:HEADER_SIZE]
-
-    rest = totalBytes[HEADER_SIZE:]
+    # Check if input is a file path (string) or bytes data
+    if isinstance(input_data, str):
+        # File path: open file and read bytes
+        with open(input_data, "rb") as f:
+            totalBytes = f.read()
+        header = totalBytes[:HEADER_SIZE]
+        rest = totalBytes[HEADER_SIZE:]
+    elif isinstance(input_data, bytes):
+        # Bytes data: no header, process all bytes
+        header = b''
+        rest = input_data
 
     blocks = []    
     for i in range(0, len(rest), BLOCK_SIZE_BYTES):
@@ -78,16 +96,17 @@ def main():
     mustangFileName = "./mustang.bmp"
     cpLogoFileName = "./cp-logo.bmp"
 
-    headerMustang, blocksMustang = convertToBits(fileName=mustangFileName)
-    headerCpLogo, blocksCpLogo = convertToBits(fileName=cpLogoFileName)
+    headerMustang, blocksMustang = convertToBits(mustangFileName)
+    headerCpLogo, blocksCpLogo = convertToBits(cpLogoFileName)
 
     ecb("mustangECB.bmp", blocksMustang, headerMustang)
 
-    cbc("mustangCBC.bmp", blocksMustang, headerMustang)
+    cbc(blocksMustang, headerMustang, outputFile="mustangCBC.bmp")
+    
+    cbc(blocksCpLogo, headerCpLogo, outputFile="cpLogoCBC.bmp")
 
     ecb("cpLogoECB.bmp", blocksCpLogo, headerCpLogo)
 
-    cbc("cpLogoCBC.bmp", blocksCpLogo, headerCpLogo)
 
 if __name__ == "__main__":
     main()
